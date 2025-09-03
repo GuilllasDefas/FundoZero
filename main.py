@@ -112,68 +112,79 @@ class FundoZeroGUI:
 
     # ---------- UI ----------
     def _build(self):
-        top = ttk.Frame(self.root)
-        top.pack(fill=tk.X, padx=8, pady=6)
-        ttk.Button(top, text='Abrir', command=self._on_open).pack(side=tk.LEFT)
-        ttk.Button(top, text='Processar', command=self._on_process).pack(side=tk.LEFT, padx=4)
-        ttk.Button(top, text='Salvar', command=self._on_save).pack(side=tk.LEFT)
-        ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-        ttk.Label(top, text='Modo:').pack(side=tk.LEFT)
-        self.mode_combo = ttk.Combobox(top, values=['Auto','Qualidade','Rápido'], textvariable=self.mode_var, state='readonly', width=10)
-        self.mode_combo.pack(side=tk.LEFT, padx=2)
-        self.mode_combo.bind('<<ComboboxSelected>>', lambda _e: self._sync_mode())
-        ttk.Label(top, text='Fundo:').pack(side=tk.LEFT, padx=(10,2))
-        self.bg_combo = ttk.Combobox(top, values=['transparent','color'], textvariable=self.bg_mode_var, state='readonly', width=11)
-        self.bg_combo.pack(side=tk.LEFT)
-        ttk.Button(top, text='Cor...', command=self._on_pick_color).pack(side=tk.LEFT, padx=2)
-        ttk.Checkbutton(top, text='Alpha', variable=self.alpha_matting_var).pack(side=tk.LEFT, padx=4)
-        ttk.Checkbutton(top, text='Overlay', variable=self.overlay_var, command=lambda: self._render_preview()).pack(side=tk.LEFT, padx=2)
-        ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-        ttk.Button(top, text='Ajustes ▸', command=self._toggle_adv).pack(side=tk.LEFT)
-        ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
-        ttk.Label(top, text='Ferramenta:').pack(side=tk.LEFT)
-        self.brush_combo = ttk.Combobox(top, values=['Nenhum','Recuperar','Remover','Varinha+','Varinha-'], textvariable=self.brush_mode_var, state='readonly', width=11)
-        self.brush_combo.pack(side=tk.LEFT, padx=2)
-        self.brush_combo.bind('<<ComboboxSelected>>', lambda _e: self._on_brush_change())
-        ttk.Scale(top, from_=5, to=150, variable=self.brush_size_var, orient='horizontal', length=120).pack(side=tk.LEFT, padx=4)
-        ttk.Label(top, text='Tol:').pack(side=tk.LEFT, padx=(6,2))
-        ttk.Scale(top, from_=0, to=60, variable=self.wand_tol_var, orient='horizontal', length=90).pack(side=tk.LEFT, padx=2)
-        ttk.Button(top, text='Undo', command=self._undo_mask).pack(side=tk.LEFT, padx=4)
-        ttk.Label(top, textvariable=self.status_var, foreground='#888').pack(side=tk.RIGHT)
+            # Barra superior
+            top = ttk.Frame(self.root)
+            top.pack(fill=tk.X, padx=8, pady=6)
+            ttk.Button(top, text='Abrir', command=self._on_open).pack(side=tk.LEFT)
+            ttk.Button(top, text='Processar', command=self._on_process).pack(side=tk.LEFT, padx=4)
+            ttk.Button(top, text='Salvar', command=self._on_save).pack(side=tk.LEFT)
+            ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+            ttk.Label(top, text='Modo:').pack(side=tk.LEFT)
+            self.mode_combo = ttk.Combobox(top, values=['Auto','Qualidade','Rápido'], textvariable=self.mode_var, state='readonly', width=10)
+            self.mode_combo.pack(side=tk.LEFT, padx=2)
+            self.mode_combo.bind('<<ComboboxSelected>>', lambda _e: self._sync_mode())
+            ttk.Label(top, text='Fundo:').pack(side=tk.LEFT, padx=(10,2))
+            self.bg_combo = ttk.Combobox(top, values=['transparent','color'], textvariable=self.bg_mode_var, state='readonly', width=11)
+            self.bg_combo.pack(side=tk.LEFT)
+            ttk.Button(top, text='Cor...', command=self._on_pick_color).pack(side=tk.LEFT, padx=2)
+            ttk.Checkbutton(top, text='Alpha', variable=self.alpha_matting_var).pack(side=tk.LEFT, padx=4)
+            ttk.Checkbutton(top, text='Overlay', variable=self.overlay_var, command=lambda: self._render_preview()).pack(side=tk.LEFT, padx=2)
+            ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+            ttk.Button(top, text='Ajustes ▸', command=self._toggle_adv).pack(side=tk.LEFT)
+            ttk.Separator(top, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=6)
+            ttk.Label(top, text='Ferramenta:').pack(side=tk.LEFT)
+            self.brush_combo = ttk.Combobox(top, values=['Nenhum','Recuperar','Remover','Varinha+','Varinha-'], textvariable=self.brush_mode_var, state='readonly', width=11)
+            self.brush_combo.pack(side=tk.LEFT, padx=2)
+            self.brush_combo.bind('<<ComboboxSelected>>', lambda _e: self._on_brush_change())
+            ttk.Scale(top, from_=5, to=150, variable=self.brush_size_var, orient='horizontal', length=120).pack(side=tk.LEFT, padx=4)
+            ttk.Label(top, text='Tol:').pack(side=tk.LEFT, padx=(6,2))
+            ttk.Scale(top, from_=0, to=60, variable=self.wand_tol_var, orient='horizontal', length=90).pack(side=tk.LEFT, padx=2)
+            ttk.Button(top, text='Undo', command=self._undo_mask).pack(side=tk.LEFT, padx=4)
+            ttk.Label(top, textvariable=self.status_var, foreground='#888').pack(side=tk.RIGHT)
 
-        center = ttk.Frame(self.root)
-        center.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0,4))
-        self.canvas = tk.Canvas(center, bg='#2a2a2a', highlightthickness=0)
-        self.canvas.pack(fill=tk.BOTH, expand=True)
-        self.canvas.bind('<MouseWheel>', self._on_wheel)
-        self.canvas.bind('<Double-Button-1>', lambda _e: self._toggle_fit())
-        self.canvas.bind('<ButtonPress-1>', self._on_canvas_press)
-        self.canvas.bind('<B1-Motion>', self._on_canvas_drag)
-        self.canvas.bind('<ButtonRelease-1>', self._on_canvas_release)
-        # Panning com botão do meio
-        self.canvas.bind('<ButtonPress-2>', self._on_pan_press)
-        self.canvas.bind('<B2-Motion>', self._on_pan_drag)
-        self.canvas.bind('<ButtonRelease-2>', self._on_pan_release)
+            # Centro com canvas e barras de rolagem
+            center = ttk.Frame(self.root)
+            center.pack(fill=tk.BOTH, expand=True, padx=8, pady=(0,4))
+            canvas_wrap = ttk.Frame(center)
+            canvas_wrap.pack(fill=tk.BOTH, expand=True)
+            self.canvas = tk.Canvas(canvas_wrap, bg='#2a2a2a', highlightthickness=0)
+            self.v_scroll = ttk.Scrollbar(canvas_wrap, orient='vertical', command=self._scroll_y)
+            self.h_scroll = ttk.Scrollbar(center, orient='horizontal', command=self._scroll_x)
+            self.canvas.grid(row=0, column=0, sticky='nsew')
+            self.v_scroll.grid(row=0, column=1, sticky='ns')
+            canvas_wrap.grid_columnconfigure(0, weight=1)
+            canvas_wrap.grid_rowconfigure(0, weight=1)
+            self.h_scroll.pack(fill=tk.X, side=tk.BOTTOM)
+            self.canvas.bind('<MouseWheel>', self._on_wheel)
+            self.canvas.bind('<Double-Button-1>', lambda _e: self._toggle_fit())
+            self.canvas.bind('<ButtonPress-1>', self._on_canvas_press)
+            self.canvas.bind('<B1-Motion>', self._on_canvas_drag)
+            self.canvas.bind('<ButtonRelease-1>', self._on_canvas_release)
+            self.canvas.bind('<ButtonPress-2>', self._on_pan_press)
+            self.canvas.bind('<B2-Motion>', self._on_pan_drag)
+            self.canvas.bind('<ButtonRelease-2>', self._on_pan_release)
 
-        self.adv_panel = ttk.Frame(self.root)
-        r=0
-        ttk.Label(self.adv_panel, text='Suavização').grid(row=r,column=0,sticky='w'); r+=1
-        ttk.Scale(self.adv_panel, from_=0,to=12,variable=self.feather_var).grid(row=r,column=0,sticky='we'); r+=1
-        ttk.Label(self.adv_panel, text='Contrair (erode)').grid(row=r,column=0,sticky='w'); r+=1
-        ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.erode_var).grid(row=r,column=0,sticky='we'); r+=1
-        ttk.Label(self.adv_panel, text='Expandir (dilate)').grid(row=r,column=0,sticky='w'); r+=1
-        ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.dilate_var).grid(row=r,column=0,sticky='we'); r+=1
-        self.adv_panel.grid_columnconfigure(0, weight=1)
+            # Painel avançado (oculto inicialmente)
+            self.adv_panel = ttk.Frame(self.root)
+            r=0
+            ttk.Label(self.adv_panel, text='Suavização').grid(row=r,column=0,sticky='w'); r+=1
+            ttk.Scale(self.adv_panel, from_=0,to=12,variable=self.feather_var).grid(row=r,column=0,sticky='we'); r+=1
+            ttk.Label(self.adv_panel, text='Contrair (erode)').grid(row=r,column=0,sticky='w'); r+=1
+            ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.erode_var).grid(row=r,column=0,sticky='we'); r+=1
+            ttk.Label(self.adv_panel, text='Expandir (dilate)').grid(row=r,column=0,sticky='w'); r+=1
+            ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.dilate_var).grid(row=r,column=0,sticky='we'); r+=1
+            self.adv_panel.grid_columnconfigure(0, weight=1)
 
-        bottom = ttk.Frame(self.root)
-        bottom.pack(fill=tk.X, padx=8, pady=(0,6))
-        ttk.Label(bottom, text='Zoom:').pack(side=tk.LEFT)
-        self.zoom_slider = ttk.Scale(bottom, from_=10,to=400, variable=self.zoom_var, command=lambda _e: self._on_zoom())
-        self.zoom_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
-        ttk.Button(bottom, text='100%', command=lambda: self._set_zoom(100)).pack(side=tk.LEFT, padx=2)
-        ttk.Button(bottom, text='Ajustar', command=self._fit).pack(side=tk.LEFT, padx=2)
-        self.progress = ttk.Progressbar(bottom, mode='indeterminate', length=100)
-        self.progress.pack(side=tk.RIGHT, padx=4)
+            # Barra inferior
+            bottom = ttk.Frame(self.root)
+            bottom.pack(fill=tk.X, padx=8, pady=(0,6))
+            ttk.Label(bottom, text='Zoom:').pack(side=tk.LEFT)
+            self.zoom_slider = ttk.Scale(bottom, from_=10,to=400, variable=self.zoom_var, command=lambda _e: self._on_zoom())
+            self.zoom_slider.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=6)
+            ttk.Button(bottom, text='100%', command=lambda: self._set_zoom(100)).pack(side=tk.LEFT, padx=2)
+            ttk.Button(bottom, text='Ajustar', command=self._fit).pack(side=tk.LEFT, padx=2)
+            self.progress = ttk.Progressbar(bottom, mode='indeterminate', length=100)
+            self.progress.pack(side=tk.RIGHT, padx=4)
 
     # ---------- Ações ----------
     def _on_open(self):
@@ -196,8 +207,14 @@ class FundoZeroGUI:
             messagebox.showerror('Erro', f'Falha ao abrir: {ex}')
 
     def _on_process(self):
-        if not self.orig or self.processing: return
-        self.processing=True; self.progress.start(12)
+        if not self.orig or self.processing:
+            return
+        
+        # Desativar botões durante o processamento
+        self._toggle_buttons(state=tk.DISABLED)
+        
+        self.processing = True
+        self.progress.start(12)
         self._set_status('Processando...')
         threading.Thread(target=self._do_process, daemon=True).start()
 
@@ -220,7 +237,12 @@ class FundoZeroGUI:
             self.root.after(0, lambda: (self._set_status(f'Erro: {ex}'), self._done_process()))
 
     def _done_process(self):
-        self.progress.stop(); self.processing=False; self._set_status('Pronto')
+        self.progress.stop()
+        self.processing = False
+        self._set_status('Pronto')
+        
+        # Reativar botões após o processamento
+        self._toggle_buttons(state=tk.NORMAL)
 
     def _on_save(self):
         if not self.result:
@@ -253,7 +275,8 @@ class FundoZeroGUI:
         if m>1600:
             sc = 1600/float(m)
             sz = (int(src.width*sc), int(src.height*sc))
-            self.preview_scaled = src.resize(sz, Image.BILINEAR)
+            # Usar LANCZOS para melhor qualidade na pré-visualização inicial
+            self.preview_scaled = src.resize(sz, Image.LANCZOS)
             if self.mask:
                 self.preview_mask = self.mask.resize(sz, Image.NEAREST)
         else:
@@ -266,17 +289,33 @@ class FundoZeroGUI:
     def _render_preview(self, final: bool=False):
         if not self.preview_scaled:
             self.canvas.delete('all'); return
+            
+        # Usar tamanho atual do canvas
         cvs_w = self.canvas.winfo_width() or 800
         cvs_h = self.canvas.winfo_height() or 500
         img = self.preview_scaled
+        
+        # Cálculo de escala
         if self.fit_var.get():
             scale = min((cvs_w-10)/img.width, (cvs_h-10)/img.height)
             scale = max(0.05, scale)
         else:
             scale = self.zoom_var.get()/100.0
+            
+        # Otimização: evitar redimensionamento se a escala for próxima a 1.0
+        if 0.98 <= scale <= 1.02:
+            scale = 1.0
+            
         new_size = (max(1,int(img.width*scale)), max(1,int(img.height*scale)))
-        disp = img.resize(new_size, Image.LANCZOS if final else Image.BILINEAR) if new_size!=img.size else img
-        # Overlay aprimorado
+        
+        # Otimização: verificar se o redimensionamento é realmente necessário
+        resize_needed = new_size != img.size
+        
+        # Usar método NEAREST para preview rápido (não-final) para melhorar performance
+        resize_method = Image.LANCZOS if final else Image.NEAREST
+        disp = img.resize(new_size, resize_method) if resize_needed else img
+
+        # Overlay aprimorado - só processar se necessário
         if self.overlay_var.get() and self.preview_mask is not None and self.mask is not None and self.orig is not None:
             base_orig = self.orig
             if base_orig.size != self.preview_scaled.size:
@@ -303,61 +342,166 @@ class FundoZeroGUI:
                 disp = Image.alpha_composite(base_rgba, overlay_red)
         tk_img = ImageTk.PhotoImage(disp)
         self.canvas.delete('all')
-        cx,cy = cvs_w//2, cvs_h//2
+        
+        # Centralização e posicionamento otimizados
+        cx, cy = cvs_w//2, cvs_h//2
+        
         # Reset pan se em modo Ajustar
         if self.fit_var.get():
             self._pan_offset = [0,0]
-        ox = cx - new_size[0]//2 + self._pan_offset[0]
-        oy = cy - new_size[1]//2 + self._pan_offset[1]
+            
+        base_ox = cx - new_size[0]//2
+        base_oy = cy - new_size[1]//2
+        ox = base_ox + self._pan_offset[0]
+        oy = base_oy + self._pan_offset[1]
+        
+        # Limites de deslocamento quando imagem maior que viewport
+        if new_size[0] > cvs_w:
+            min_ox = cvs_w - new_size[0]
+            if ox < min_ox: self._pan_offset[0] += (min_ox - ox); ox = min_ox
+            if ox > 0: self._pan_offset[0] -= ox; ox = 0
+        else:
+            ox = base_ox
+            self._pan_offset[0] = ox - base_ox
+            
+        if new_size[1] > cvs_h:
+            min_oy = cvs_h - new_size[1]
+            if oy < min_oy: self._pan_offset[1] += (min_oy - oy); oy = min_oy
+            if oy > 0: self._pan_offset[1] -= oy; oy = 0
+        else:
+            oy = base_oy
+            self._pan_offset[1] = oy - base_oy
+            
+        # Criar imagem no canvas
         self.canvas.create_image(ox, oy, image=tk_img, anchor='nw')
         self.canvas.image = tk_img
         self._disp_img_size = new_size
         self._disp_origin = (ox, oy)
-        if not final:
-            if self._debounce_hq_id: self.root.after_cancel(self._debounce_hq_id)
-            self._debounce_hq_id = self.root.after(220, lambda: self._render_preview(final=True))
+        self._update_scrollbars(cvs_w, cvs_h)
+        
+        # Otimização: aumentar o tempo de debounce e verificar se vale a pena renderizar em alta qualidade
+        if not final and resize_needed:
+            if self._debounce_hq_id: 
+                self.root.after_cancel(self._debounce_hq_id)
+            # Aumentar para 300ms para reduzir atualizações
+            self._debounce_hq_id = self.root.after(300, lambda: self._render_preview(final=True))
 
-    def _on_zoom(self):
-        if self.fit_var.get(): return
+    # ---------- Scrollbars (restaurado) ----------
+    def _update_scrollbars(self, cvs_w:int, cvs_h:int):
+        iw, ih = self._disp_img_size
+        ox, oy = self._disp_origin
+        # Horizontal
+        if iw > cvs_w:
+            left = -ox
+            if left < 0: left = 0
+            right = left + cvs_w
+            self.h_scroll.set(left/iw, min(1.0, right/iw))
+            self.h_scroll.state(['!disabled'])
+        else:
+            self.h_scroll.set(0,1)
+            self.h_scroll.state(['disabled'])
+        # Vertical
+        if ih > cvs_h:
+            top = -oy
+            if top < 0: top = 0
+            bottom = top + cvs_h
+            self.v_scroll.set(top/ih, min(1.0, bottom/ih))
+            self.v_scroll.state(['!disabled'])
+        else:
+            self.v_scroll.set(0,1)
+            self.v_scroll.state(['disabled'])
+
+    # Corrigir comportamento das barras de rolagem
+    def _scroll_x(self, *args):
+        if not self._disp_img_size or self.fit_var.get(): return
+        iw, ih = self._disp_img_size
+        cvs_w = self.canvas.winfo_width() or 1
+        if iw <= cvs_w: return
+        
+        # Ignorar completamente eventos 'moveto' com diferença pequena
+        # para evitar movimentos não intencionais ao clicar na barra
+        if args[0] == 'moveto':
+            # Este é um truque: verificar se viemos de um "clique na barra" ou de um "arrasto"
+            # Vamos rastrear o último evento de moveto para diferenciar
+            current_time = self.root.tk.call('clock', 'milliseconds')
+            last_time = getattr(self, '_last_scroll_x_time', 0)
+            last_pos = getattr(self, '_last_scroll_x_pos', None)
+            
+            self._last_scroll_x_time = current_time
+            self._last_scroll_x_pos = float(args[1])
+            
+            # Se o último evento foi muito recente (menos de 50ms atrás)
+            # E houve uma mudança significativa na posição, consideramos um arrasto
+            is_drag = (current_time - last_time < 50) and last_pos is not None and abs(float(args[1]) - last_pos) > 0.0001
+            
+            if not is_drag:
+                # Ignorar evento de clique inicial
+                return
+                
+            frac = float(args[1])
+        elif args[0] == 'scroll':
+            number = int(args[1])
+            visible_frac = cvs_w / iw
+            step = visible_frac * (1 if args[2]=='pages' else 0.2)
+            ox = self._disp_origin[0]
+            left = -ox
+            cur_frac = left / iw
+            frac = cur_frac + number * step
+        else:
+            return
+            
+        frac = max(0.0, min(1.0, frac))
+        min_ox = cvs_w - iw
+        desired_ox = frac * min_ox
+        base_ox = (cvs_w - iw)//2
+        self._pan_offset[0] = desired_ox - base_ox
         self._render_preview()
 
-    def _set_zoom(self, p:int):
-        self.fit_var.set(False); self.zoom_var.set(p); self._render_preview()
-
-    def _fit(self):
-        self.fit_var.set(True); self._render_preview(final=True)
-
-    def _toggle_fit(self):
-        self.fit_var.set(not self.fit_var.get()); self._render_preview()
-
-    def _on_wheel(self, event):
-        if self.fit_var.get():
-            self.fit_var.set(False)
-        old_zoom = self.zoom_var.get()
-        step = 8 if event.delta>0 else -8
-        new_zoom = max(10, min(400, old_zoom + step))
-        if new_zoom == old_zoom: return
-        # foco relativo
-        if self._disp_img_size[0] and self._disp_img_size[1]:
-            ox, oy = self._disp_origin
-            iw, ih = self._disp_img_size
-            mx, my = event.x, event.y
-            if ox <= mx <= ox+iw and oy <= my <= oy+ih:
-                relx = (mx - ox)/iw; rely = (my - oy)/ih
-            else:
-                relx = rely = 0.5
+    def _scroll_y(self, *args):
+        if not self._disp_img_size or self.fit_var.get(): return
+        iw, ih = self._disp_img_size
+        cvs_h = self.canvas.winfo_height() or 1
+        if ih <= cvs_h: return
+        
+        # Similar ao _scroll_x, evitar movimentos não intencionais
+        if args[0] == 'moveto':
+            current_time = self.root.tk.call('clock', 'milliseconds')
+            last_time = getattr(self, '_last_scroll_y_time', 0)
+            last_pos = getattr(self, '_last_scroll_y_pos', None)
+            
+            self._last_scroll_y_time = current_time
+            self._last_scroll_y_pos = float(args[1])
+            
+            is_drag = (current_time - last_time < 50) and last_pos is not None and abs(float(args[1]) - last_pos) > 0.0001
+            
+            if not is_drag:
+                return
+                
+            frac = float(args[1])
+        elif args[0] == 'scroll':
+            number = int(args[1])
+            visible_frac = cvs_h / ih
+            step = visible_frac * (1 if args[2]=='pages' else 0.2)
+            oy = self._disp_origin[1]
+            top = -oy
+            cur_frac = top / ih
+            frac = cur_frac + number * step
         else:
-            relx = rely = 0.5
-        self.zoom_var.set(new_zoom)
-        ratio = new_zoom / old_zoom if old_zoom else 1
-        self._pan_offset[0] = int((self._pan_offset[0] + (relx-0.5)*self._disp_img_size[0]) * ratio - (relx-0.5)*(self._disp_img_size[0]*ratio))
-        self._pan_offset[1] = int((self._pan_offset[1] + (rely-0.5)*self._disp_img_size[1]) * ratio - (rely-0.5)*(self._disp_img_size[1]*ratio))
+            return
+            
+        frac = max(0.0, min(1.0, frac))
+        min_oy = cvs_h - ih
+        desired_oy = frac * min_oy
+        base_oy = (cvs_h - ih)//2
+        self._pan_offset[1] = desired_oy - base_oy
         self._render_preview()
 
     def _on_resize(self, _e):
         if not (self.orig or self.result): return
-        if self._debounce_resize_id: self.root.after_cancel(self._debounce_resize_id)
-        self._debounce_resize_id = self.root.after(140, lambda: self._render_preview(final=True))
+        if self._debounce_resize_id: 
+            self.root.after_cancel(self._debounce_resize_id)
+        # Aumentar o debounce para evitar múltiplas renderizações durante o redimensionamento
+        self._debounce_resize_id = self.root.after(200, lambda: self._render_preview(final=True))
 
     # ---------- Ferramentas de Máscara ----------
     def _on_brush_change(self):
@@ -522,6 +666,64 @@ class FundoZeroGUI:
     def _set_status(self, msg:str):
         self.status_var.set(msg); self.root.update_idletasks()
 
+    def _toggle_buttons(self, state):
+        """Ativa ou desativa botões principais da interface."""
+        for widget in self.root.winfo_children():
+            if isinstance(widget, ttk.Button):
+                widget.config(state=state)
+
+    # Método ausente que precisa ser adicionado
+    def _on_wheel(self, event):
+        # Ctrl + roda = zoom; sem Ctrl = rolagem; Shift = horizontal
+        ctrl = (event.state & 0x4) != 0
+        shift = (event.state & 0x1) != 0
+        if ctrl:
+            if self.fit_var.get():
+                self.fit_var.set(False)
+            old_zoom = self.zoom_var.get()
+            step = 8 if event.delta>0 else -8
+            new_zoom = max(10, min(400, old_zoom + step))
+            if new_zoom == old_zoom: return
+            if self._disp_img_size[0] and self._disp_img_size[1]:
+                ox, oy = self._disp_origin
+                iw, ih = self._disp_img_size
+                mx, my = event.x, event.y
+                if ox <= mx <= ox+iw and oy <= my <= oy+ih:
+                    relx = (mx - ox)/iw; rely = (my - oy)/ih
+                else:
+                    relx = rely = 0.5
+            else:
+                relx = rely = 0.5
+            self.zoom_var.set(new_zoom)
+            ratio = new_zoom / old_zoom if old_zoom else 1
+            self._pan_offset[0] = int((self._pan_offset[0] + (relx-0.5)*self._disp_img_size[0]) * ratio - (relx-0.5)*(self._disp_img_size[0]*ratio))
+            self._pan_offset[1] = int((self._pan_offset[1] + (rely-0.5)*self._disp_img_size[1]) * ratio - (rely-0.5)*(self._disp_img_size[1]*ratio))
+            self._render_preview()
+            return
+        # Scroll
+        if self.fit_var.get():
+            # sair do modo ajustar para permitir rolagem quando imagem maior
+            self.fit_var.set(False)
+        delta_units = int(event.delta/120)
+        scroll_px = -delta_units * 60  # invertido para sensação natural
+        if shift:
+            self._pan_offset[0] += scroll_px
+        else:
+            self._pan_offset[1] += scroll_px
+        self._render_preview()
+
+    def _on_zoom(self):
+        if self.fit_var.get(): return
+        self._render_preview()
+
+    def _set_zoom(self, p:int):
+        self.fit_var.set(False); self.zoom_var.set(p); self._render_preview()
+
+    def _fit(self):
+        self.fit_var.set(True); self._render_preview(final=True)
+
+    def _toggle_fit(self):
+        self.fit_var.set(not self.fit_var.get()); self._render_preview()
 
 def main():
     root = tk.Tk(); FundoZeroGUI(root); root.mainloop()

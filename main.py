@@ -24,6 +24,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, colorchooser
 from PIL import Image, ImageTk, ImageDraw, ImageFilter, ImageChops
+import json
 
 try:
     from app.utils import (
@@ -45,6 +46,7 @@ except Exception:  # pragma: no cover
     )
 
 APP_TITLE = 'FundoZero'
+CONFIG_PATH = Path.home() / '.fundozero_config.json'
 
 
 def _auto_defaults(img: Image.Image) -> Tuple[int,int,int]:
@@ -84,6 +86,8 @@ class FundoZeroGUI:
         self.feather_var = tk.IntVar(value=3)
         self.erode_var = tk.IntVar(value=0)
         self.dilate_var = tk.IntVar(value=0)
+        # NOVO: sensibilidade (0 preserva mais, 100 remove mais, 50 neutro)
+        self.sensitivity_var = tk.IntVar(value=50)
         self.adv_open = tk.BooleanVar(value=False)
         self.alpha_matting_var = tk.BooleanVar(value=False)
         self.brush_mode_var = tk.StringVar(value='Nenhum')
@@ -91,6 +95,12 @@ class FundoZeroGUI:
         self.wand_tol_var = tk.IntVar(value=18)
         self.overlay_var = tk.BooleanVar(value=False)
         self._undo_stack: List[Image.Image] = []
+        # Persistência
+        self._save_after_id = None
+        self._loading_config = False
+        # Base sem sensibilidade (para reaplicar sem reprocesar pesado)
+        self.segmented_base: Optional[Image.Image] = None
+        self._mask_edited = False
 
         # Debounce / geometria
         self._debounce_resize_id = None
@@ -102,13 +112,95 @@ class FundoZeroGUI:
         self._pan_start = (0,0)
         self._pan_offset = [0,0]
         self._space_pan = False
+        # Pré-visualização de ferramenta
+        self._cursor_overlay_tag = 'cursor_overlay'
+        self._last_mouse: Optional[Tuple[int,int]] = None
 
         self._build()
+        # Persistência: carregar após construção de variáveis/UI
+        self._load_config()
+        self._attach_traces()
+        # Salvar ao fechar
+        self.root.protocol('WM_DELETE_WINDOW', self._on_close)
         self.root.bind('<Configure>', self._on_resize)
         self._set_status('Abra uma imagem')
         self.root.bind('m', lambda _e: self._toggle_overlay())
         self.root.bind('<KeyPress-space>', self._on_space_press)
         self.root.bind('<KeyRelease-space>', self._on_space_release)
+
+    # --- Persistência ---
+    def _attach_traces(self):
+        vars_to_watch = [
+            self.feather_var, self.erode_var, self.dilate_var,
+            self.brush_size_var, self.wand_tol_var,
+            self.mode_var, self.bg_mode_var,
+            self.sensitivity_var  # novo
+        ]
+        for v in vars_to_watch:
+            v.trace_add('write', lambda *_a: self._schedule_save())
+        # Atualização de labels de valor
+        for name, (var, lbl) in getattr(self, '_value_labels', {}).items():
+            var.trace_add('write', lambda *_a, v=var, l=lbl: l.config(text=str(v.get())))
+        # Sensibilidade: reaplicar se possível
+        self.sensitivity_var.trace_add('write', lambda *_a: self._on_sensitivity_change())
+        # Atualizar overlay ao mudar tamanho do pincel
+        self.brush_size_var.trace_add('write', lambda *_a: self._draw_cursor_overlay())
+
+    def _schedule_save(self):
+        if self._loading_config:
+            return
+        if self._save_after_id:
+            self.root.after_cancel(self._save_after_id)
+        self._save_after_id = self.root.after(400, self._save_config)
+
+    def _load_config(self):
+        if not CONFIG_PATH.exists():
+            return
+        try:
+            self._loading_config = True
+            data = json.loads(CONFIG_PATH.read_text(encoding='utf-8'))
+            def set_if(key, var):
+                if key in data:
+                    try: var.set(data[key])
+                    except Exception: pass
+            set_if('feather', self.feather_var)
+            set_if('erode', self.erode_var)
+            set_if('dilate', self.dilate_var)
+            set_if('brush_size', self.brush_size_var)
+            set_if('wand_tol', self.wand_tol_var)
+            set_if('mode', self.mode_var)
+            set_if('bg_mode', self.bg_mode_var)
+            set_if('sensitivity', self.sensitivity_var)  # novo
+            if 'bg_color' in data and isinstance(data['bg_color'], list) and len(data['bg_color'])==3:
+                self.bg_color = tuple(data['bg_color'])
+            # Atualizar preview se já houver imagem
+            if self.orig:
+                self._compose_result(); self._make_preview(); self._render_preview()
+        except Exception:
+            pass
+        finally:
+            self._loading_config = False
+
+    def _save_config(self):
+        cfg = {
+            'feather': self.feather_var.get(),
+            'erode': self.erode_var.get(),
+            'dilate': self.dilate_var.get(),
+            'brush_size': self.brush_size_var.get(),
+            'wand_tol': self.wand_tol_var.get(),
+            'mode': self.mode_var.get(),
+            'bg_mode': self.bg_mode_var.get(),
+            'bg_color': list(self.bg_color) if self.bg_color else None,
+            'sensitivity': self.sensitivity_var.get(),  # novo
+        }
+        try:
+            CONFIG_PATH.write_text(json.dumps(cfg, indent=2), encoding='utf-8')
+        except Exception:
+            pass
+
+    def _on_close(self):
+        self._save_config()
+        self.root.destroy()
 
     # ---------- UI ----------
     def _build(self):
@@ -156,6 +248,7 @@ class FundoZeroGUI:
             canvas_wrap.grid_rowconfigure(0, weight=1)
             self.h_scroll.pack(fill=tk.X, side=tk.BOTTOM)
             self.canvas.bind('<MouseWheel>', self._on_wheel)
+            self.canvas.bind('<Motion>', self._on_canvas_motion)  # NOVO
             self.canvas.bind('<Double-Button-1>', lambda _e: self._toggle_fit())
             self.canvas.bind('<ButtonPress-1>', self._on_canvas_press)
             self.canvas.bind('<B1-Motion>', self._on_canvas_drag)
@@ -164,15 +257,29 @@ class FundoZeroGUI:
             self.canvas.bind('<B2-Motion>', self._on_pan_drag)
             self.canvas.bind('<ButtonRelease-2>', self._on_pan_release)
 
-            # Painel avançado (oculto inicialmente)
+            # Painel avançado (novo layout explicativo)
             self.adv_panel = ttk.Frame(self.root)
-            r=0
-            ttk.Label(self.adv_panel, text='Suavização').grid(row=r,column=0,sticky='w'); r+=1
-            ttk.Scale(self.adv_panel, from_=0,to=12,variable=self.feather_var).grid(row=r,column=0,sticky='we'); r+=1
-            ttk.Label(self.adv_panel, text='Contrair (erode)').grid(row=r,column=0,sticky='w'); r+=1
-            ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.erode_var).grid(row=r,column=0,sticky='we'); r+=1
-            ttk.Label(self.adv_panel, text='Expandir (dilate)').grid(row=r,column=0,sticky='w'); r+=1
-            ttk.Scale(self.adv_panel, from_=0,to=10,variable=self.dilate_var).grid(row=r,column=0,sticky='we'); r+=1
+            self._value_labels = {}
+            def add_param(text, desc, var, from_, to_):
+                row = ttk.LabelFrame(self.adv_panel, text=text)
+                row.pack(fill='x', pady=4)
+                top_line = ttk.Frame(row)
+                top_line.pack(fill='x', padx=4, pady=(2,0))
+                ttk.Label(top_line, text=desc, foreground='#666').pack(side='left')
+                val_lbl = ttk.Label(top_line, text=str(var.get()), width=4, anchor='e')
+                val_lbl.pack(side='right')
+                self._value_labels[text] = (var, val_lbl)
+                body = ttk.Frame(row)
+                body.pack(fill='x', padx=4, pady=2)
+                scale = ttk.Scale(body, from_=from_, to_=to_, variable=var, orient='horizontal')
+                scale.pack(side='left', fill='x', expand=True, padx=(0,6))
+                spin = ttk.Spinbox(body, from_=from_, to_=to_, textvariable=var, width=5, wrap=True)
+                spin.pack(side='right')
+            # NOVO: Sensibilidade primeiro
+            add_param('Sensibilidade', 'Agressividade da remoção (baixo=preserva)', self.sensitivity_var, 0, 100)
+            add_param('Suavização', 'Transição suave das bordas (feather)', self.feather_var, 0, 12)
+            add_param('Contrair', 'Remove pixels da borda (erode)', self.erode_var, 0, 10)
+            add_param('Expandir', 'Adiciona pixels à borda (dilate)', self.dilate_var, 0, 10)
             self.adv_panel.grid_columnconfigure(0, weight=1)
 
             # Barra inferior
@@ -229,8 +336,12 @@ class FundoZeroGUI:
                 seg = remove_with_grabcut(img)
             seg = refine_alpha(seg, erode=self.erode_var.get(), dilate=self.dilate_var.get())
             seg = feather_alpha(seg, radius=self.feather_var.get())
+            # Base antes da sensibilidade
+            self.segmented_base = seg.copy()
+            seg = self._apply_sensitivity_to_image(seg, self.sensitivity_var.get())
             self.segmented = seg
             self.mask = seg.split()[-1].copy()
+            self._mask_edited = False
             self._compose_result(); self._make_preview()
             self.root.after(0, lambda: (self._render_preview(final=True), self._done_process()))
         except Exception as ex:  # pragma: no cover
@@ -259,6 +370,7 @@ class FundoZeroGUI:
             if self.segmented:
                 self._compose_result(); self._make_preview(); self._render_preview()
             self._set_status(f'Cor #{r:02X}{g:02X}{b:02X}')
+            self._schedule_save()
 
     # ---------- Preview / Zoom ----------
     def _toggle_adv(self):
@@ -385,6 +497,8 @@ class FundoZeroGUI:
                 self.root.after_cancel(self._debounce_hq_id)
             # Aumentar para 300ms para reduzir atualizações
             self._debounce_hq_id = self.root.after(300, lambda: self._render_preview(final=True))
+        # Redesenhar overlay após atualizar imagem
+        self._draw_cursor_overlay()
 
     # ---------- Scrollbars (restaurado) ----------
     def _update_scrollbars(self, cvs_w:int, cvs_h:int):
@@ -503,6 +617,71 @@ class FundoZeroGUI:
         # Aumentar o debounce para evitar múltiplas renderizações durante o redimensionamento
         self._debounce_resize_id = self.root.after(200, lambda: self._render_preview(final=True))
 
+    # ---------- Sensibilidade ----------
+    def _on_sensitivity_change(self):
+        if self._loading_config:
+            return
+        if self.segmented_base and not self._mask_edited:
+            self._reapply_sensitivity()
+        elif self.segmented_base and self._mask_edited:
+            self._set_status('Sensibilidade alterada: reprocessar para aplicar (Processar)')
+
+    def _reapply_sensitivity(self):
+        if not self.segmented_base:
+            return
+        seg = self._apply_sensitivity_to_image(self.segmented_base.copy(), self.sensitivity_var.get())
+        self.segmented = seg
+        self.mask = seg.split()[-1].copy()
+        self._compose_result(); self._make_preview(); self._render_preview()
+        self._set_status(f"Sensibilidade: {self.sensitivity_var.get()}")
+
+    def _apply_sensitivity_to_image(self, img: Image.Image, sens: int) -> Image.Image:
+        """Ajusta o canal alpha para mais ou menos remoção.
+        sens=50 neutro; >50 remove mais (encolhe), <50 preserva mais (expande)."""
+        try:
+            sens = max(0, min(100, int(sens)))
+            a = img.split()[-1]
+            offset = sens - 50
+            if offset == 0:
+                return img
+            if offset > 0:
+                # Mais remoção: aumenta threshold e comprime faixa
+                thr = 128 + int((offset/50)*40)  # 128..168
+                lut = []
+                for v in range(256):
+                    if v < thr:
+                        lut.append(0)
+                    else:
+                        lut.append(min(255, int((v - thr) / (255 - thr) * 255)))
+                a = a.point(lut)
+                # leve erosão adicional proporcional
+                if offset > 25:
+                    try:
+                        a = a.filter(ImageFilter.MinFilter(3))
+                    except Exception:
+                        pass
+            else:
+                # Menos remoção: reduz threshold e expande
+                pos = -offset
+                thr = 128 - int((pos/50)*40)  # 128..88
+                lut = []
+                for v in range(256):
+                    if v > thr:
+                        lut.append(255)
+                    else:
+                        lut.append(int(v / max(1, thr) * 255))
+                a = a.point(lut)
+                # leve dilatação adicional
+                if pos > 25:
+                    try:
+                        a = a.filter(ImageFilter.MaxFilter(3))
+                    except Exception:
+                        pass
+            r,g,b,_ = img.split()
+            return Image.merge('RGBA', (r,g,b,a))
+        except Exception:
+            return img
+
     # ---------- Ferramentas de Máscara ----------
     def _on_brush_change(self):
         mode = self.brush_mode_var.get()
@@ -512,6 +691,7 @@ class FundoZeroGUI:
             self.canvas.config(cursor='')
         else:
             self.canvas.config(cursor='crosshair')
+        self._draw_cursor_overlay()  # atualizar preview
 
     def _canvas_to_image(self, x:int, y:int) -> Optional[Tuple[int,int]]:
         if not self.result: return None
@@ -527,6 +707,8 @@ class FundoZeroGUI:
             self._apply_wand(e.x, e.y, restore=mode.endswith('+'))
         else:
             self._painting=True; self._apply_brush(e.x,e.y)
+        # atualizar overlay (caso clique sem mover)
+        self._draw_cursor_overlay()
 
     def _on_canvas_drag(self, e):
         if self._painting: self._apply_brush(e.x,e.y,dragging=True)
@@ -535,6 +717,7 @@ class FundoZeroGUI:
         if self._painting:
             self._painting=False
             self._compose_result(); self._make_preview(); self._render_preview(final=True)
+        self._draw_cursor_overlay()
 
     # Pan handlers
     def _on_pan_press(self, e):
@@ -551,11 +734,13 @@ class FundoZeroGUI:
         self._pan_offset[0] = self._pan_origin[0] + dx
         self._pan_offset[1] = self._pan_origin[1] + dy
         self._render_preview()
+        self._draw_cursor_overlay()
 
     def _on_pan_release(self, _e):
         if self._panning:
             self._panning = False
             self._render_preview(final=True)
+            self._draw_cursor_overlay()
 
     def _toggle_overlay(self):
         self.overlay_var.set(not self.overlay_var.get())
@@ -565,13 +750,14 @@ class FundoZeroGUI:
         if not self.mask: return
         pt = self._canvas_to_image(x,y)
         if not pt: return
-        if not dragging: self._push_undo()
+        if not dragging: self._mask_edited = True
         r = max(1,int(self.brush_size_var.get()))
         draw = ImageDraw.Draw(self.mask)
         fill = 255 if self.brush_mode_var.get()=='Recuperar' else 0
         draw.ellipse([pt[0]-r, pt[1]-r, pt[0]+r, pt[1]+r], fill=fill)
         self._compose_result(); self._make_preview(); self._render_preview(final=not dragging)
         self._set_status(f"Pincel {self.brush_mode_var.get()} {r}px")
+        self._draw_cursor_overlay()
 
     # Varinha
     def _apply_wand(self, x:int, y:int, restore: bool):
@@ -589,6 +775,7 @@ class FundoZeroGUI:
             mload[cx,cy] = target
         self._compose_result(); self._make_preview(); self._render_preview(final=True)
         self._set_status(f"Varinha {'+' if restore else '-'} {len(region)} px Tol {tol}")
+        self._draw_cursor_overlay()
 
     # Spacebar pan temporary mode
     def _on_space_press(self, _e):
@@ -640,6 +827,7 @@ class FundoZeroGUI:
         self.mask = self._undo_stack.pop()
         self._compose_result(); self._make_preview(); self._render_preview(final=True)
         self._set_status('Undo')
+        self._mask_edited = True
 
     def _compose_result(self):
         if not self.segmented: return
@@ -699,6 +887,7 @@ class FundoZeroGUI:
             self._pan_offset[0] = int((self._pan_offset[0] + (relx-0.5)*self._disp_img_size[0]) * ratio - (relx-0.5)*(self._disp_img_size[0]*ratio))
             self._pan_offset[1] = int((self._pan_offset[1] + (rely-0.5)*self._disp_img_size[1]) * ratio - (rely-0.5)*(self._disp_img_size[1]*ratio))
             self._render_preview()
+            self._draw_cursor_overlay()
             return
         # Scroll
         if self.fit_var.get():
@@ -711,10 +900,12 @@ class FundoZeroGUI:
         else:
             self._pan_offset[1] += scroll_px
         self._render_preview()
+        self._draw_cursor_overlay()
 
     def _on_zoom(self):
         if self.fit_var.get(): return
         self._render_preview()
+        self._draw_cursor_overlay()
 
     def _set_zoom(self, p:int):
         self.fit_var.set(False); self.zoom_var.set(p); self._render_preview()
@@ -724,6 +915,74 @@ class FundoZeroGUI:
 
     def _toggle_fit(self):
         self.fit_var.set(not self.fit_var.get()); self._render_preview()
+        self._draw_cursor_overlay()
+
+    def _on_brush_change(self):
+        mode = self.brush_mode_var.get()
+        if mode.startswith('Varinha'):
+            self.canvas.config(cursor='target')
+        elif mode=='Nenhum':
+            self.canvas.config(cursor='')
+        else:
+            self.canvas.config(cursor='crosshair')
+        self._draw_cursor_overlay()  # atualizar preview
+
+    def _on_canvas_motion(self, e):
+        """Rastreia posição do mouse e atualiza indicador da ferramenta."""
+        self._last_mouse = (e.x, e.y)
+        self._draw_cursor_overlay()
+
+    def _clear_cursor_overlay(self):
+        self.canvas.delete(self._cursor_overlay_tag)
+
+    def _draw_cursor_overlay(self):
+        """Desenha círculo (pincel) ou alvo (varinha) indicando área de atuação."""
+        self._clear_cursor_overlay()
+        if not self._last_mouse:
+            return
+        mode = self.brush_mode_var.get()
+        if mode == 'Nenhum':
+            return
+        if not self._disp_img_size or (not self.result and not self.orig):
+            return
+        x, y = self._last_mouse
+        ox, oy = self._disp_origin
+        iw, ih = self._disp_img_size
+        # Dentro da imagem renderizada?
+        if not (ox <= x <= ox+iw and oy <= y <= oy+ih):
+            return
+        # Escala para converter raio imagem -> display
+        base_img = self.result if self.result else self.orig
+        if not base_img:
+            return
+        scale_x = iw / base_img.width
+        scale_y = ih / base_img.height
+        # Ferramentas de pincel
+        if mode in ('Recuperar','Remover'):
+            r_img = max(1, int(self.brush_size_var.get()))
+            r_disp = max(2, int(r_img * (scale_x + scale_y)/2.0))
+            color = '#31ff7a' if mode=='Recuperar' else '#ff4d4d'
+            self.canvas.create_oval(
+                x-r_disp, y-r_disp, x+r_disp, y+r_disp,
+                outline=color, width=2, dash=(5,3), tags=self._cursor_overlay_tag
+            )
+            self.canvas.create_text(
+                x, y+r_disp+12,
+                text=f'{r_img}px',
+                fill=color,
+                font=('TkDefaultFont', 9, 'bold'),
+                tags=self._cursor_overlay_tag
+            )
+        elif mode.startswith('Varinha'):
+            # Pequeno alvo central
+            size = 14
+            color = '#ffd94a'
+            self.canvas.create_oval(
+                x-size//2, y-size//2, x+size//2, y+size//2,
+                outline=color, width=2, tags=self._cursor_overlay_tag
+            )
+            self.canvas.create_line(x-8, y, x+8, y, fill=color, width=1, tags=self._cursor_overlay_tag)
+            self.canvas.create_line(x, y-8, x, y+8, fill=color, width=1, tags=self._cursor_overlay_tag)
 
 def main():
     root = tk.Tk(); FundoZeroGUI(root); root.mainloop()

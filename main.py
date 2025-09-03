@@ -93,6 +93,8 @@ class FundoZeroGUI:
         self.brush_mode_var = tk.StringVar(value='Nenhum')
         self.brush_size_var = tk.IntVar(value=30)
         self.wand_tol_var = tk.IntVar(value=18)
+        # NOVO: raio da varinha (limita área de atuação)
+        self.wand_radius_var = tk.IntVar(value=100)
         self.overlay_var = tk.BooleanVar(value=False)
         self._undo_stack: List[Image.Image] = []
         # Persistência
@@ -134,7 +136,7 @@ class FundoZeroGUI:
             self.feather_var, self.erode_var, self.dilate_var,
             self.brush_size_var, self.wand_tol_var,
             self.mode_var, self.bg_mode_var,
-            self.sensitivity_var  # novo
+            self.sensitivity_var, self.wand_radius_var  # novo
         ]
         for v in vars_to_watch:
             v.trace_add('write', lambda *_a: self._schedule_save())
@@ -168,6 +170,7 @@ class FundoZeroGUI:
             set_if('dilate', self.dilate_var)
             set_if('brush_size', self.brush_size_var)
             set_if('wand_tol', self.wand_tol_var)
+            set_if('wand_radius', self.wand_radius_var)  # novo
             set_if('mode', self.mode_var)
             set_if('bg_mode', self.bg_mode_var)
             set_if('sensitivity', self.sensitivity_var)  # novo
@@ -188,6 +191,7 @@ class FundoZeroGUI:
             'dilate': self.dilate_var.get(),
             'brush_size': self.brush_size_var.get(),
             'wand_tol': self.wand_tol_var.get(),
+            'wand_radius': self.wand_radius_var.get(),  # novo
             'mode': self.mode_var.get(),
             'bg_mode': self.bg_mode_var.get(),
             'bg_color': list(self.bg_color) if self.bg_color else None,
@@ -231,6 +235,10 @@ class FundoZeroGUI:
             ttk.Scale(top, from_=5, to=150, variable=self.brush_size_var, orient='horizontal', length=120).pack(side=tk.LEFT, padx=4)
             ttk.Label(top, text='Tol:').pack(side=tk.LEFT, padx=(6,2))
             ttk.Scale(top, from_=0, to=60, variable=self.wand_tol_var, orient='horizontal', length=90).pack(side=tk.LEFT, padx=2)
+            # NOVO: controle de raio da varinha
+            ttk.Label(top, text='Raio Var:').pack(side=tk.LEFT, padx=(6,2))
+            ttk.Scale(top, from_=10, to=500, variable=self.wand_radius_var, orient='horizontal', length=90).pack(side=tk.LEFT, padx=2)
+            ttk.Spinbox(top, from_=10, to=500, textvariable=self.wand_radius_var, width=5, wrap=True).pack(side=tk.LEFT, padx=2)
             ttk.Button(top, text='Undo', command=self._undo_mask).pack(side=tk.LEFT, padx=4)
             ttk.Label(top, textvariable=self.status_var, foreground='#888').pack(side=tk.RIGHT)
 
@@ -766,7 +774,8 @@ class FundoZeroGUI:
         if not pt: return
         self._push_undo()
         tol = int(self.wand_tol_var.get())
-        region = self._wand_region(pt[0], pt[1], tol)
+        radius = int(self.wand_radius_var.get())
+        region = self._wand_region(pt[0], pt[1], tol, max_radius=radius)
         if not region:
             self._set_status('Varinha: vazio'); return
         target = 255 if restore else 0
@@ -789,7 +798,7 @@ class FundoZeroGUI:
             self._space_pan = False
             self._on_brush_change()
 
-    def _wand_region(self, sx:int, sy:int, tol:int) -> List[Tuple[int,int]]:
+    def _wand_region(self, sx:int, sy:int, tol:int, max_radius: int = 100) -> List[Tuple[int,int]]:
         base_img = self.orig_lab if self.orig_lab else self.orig_rgb
         img = base_img; w,h = img.size; px = img.load(); seed = px[sx,sy]
         delta_limit = max(1, tol)
@@ -799,7 +808,12 @@ class FundoZeroGUI:
         sum0=sum1=sum2=0
         limit = min(w*h, 400_000)
         while q and len(region)<limit:
-            x,y = q.popleft(); c = px[x,y]
+            x,y = q.popleft()
+            # NOVO: verificar distância do seed
+            dist = ((x - sx)**2 + (y - sy)**2)**0.5
+            if dist > max_radius:
+                continue
+            c = px[x,y]
             if region:
                 n = len(region); m0=sum0/n; m1=sum1/n; m2=sum2/n
             else:
@@ -974,7 +988,7 @@ class FundoZeroGUI:
                 tags=self._cursor_overlay_tag
             )
         elif mode.startswith('Varinha'):
-            # Pequeno alvo central
+            # Pequeno alvo central + círculo de raio
             size = 14
             color = '#ffd94a'
             self.canvas.create_oval(
@@ -983,6 +997,20 @@ class FundoZeroGUI:
             )
             self.canvas.create_line(x-8, y, x+8, y, fill=color, width=1, tags=self._cursor_overlay_tag)
             self.canvas.create_line(x, y-8, x, y+8, fill=color, width=1, tags=self._cursor_overlay_tag)
+            # NOVO: círculo de raio da varinha
+            r_img = max(10, int(self.wand_radius_var.get()))
+            r_disp = max(2, int(r_img * (scale_x + scale_y)/2.0))
+            self.canvas.create_oval(
+                x-r_disp, y-r_disp, x+r_disp, y+r_disp,
+                outline=color, width=1, dash=(3,2), tags=self._cursor_overlay_tag
+            )
+            self.canvas.create_text(
+                x, y+r_disp+12,
+                text=f'{r_img}px',
+                fill=color,
+                font=('TkDefaultFont', 8),
+                tags=self._cursor_overlay_tag
+            )
 
 def main():
     root = tk.Tk(); FundoZeroGUI(root); root.mainloop()

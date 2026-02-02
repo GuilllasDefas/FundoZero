@@ -769,7 +769,7 @@ class FundoZeroGUI:
 
     # Varinha
     def _apply_wand(self, x:int, y:int, restore: bool):
-        if not (self.orig_rgb and self.mask): return
+        if not (self.orig_rgb and self.mask and self.segmented): return
         pt = self._canvas_to_image(x,y)
         if not pt: return
         self._push_undo()
@@ -778,10 +778,22 @@ class FundoZeroGUI:
         region = self._wand_region(pt[0], pt[1], tol, max_radius=radius)
         if not region:
             self._set_status('Varinha: vazio'); return
-        target = 255 if restore else 0
+            
+        # Obter canal alpha original para preservar transparências suaves
+        original_alpha = self.segmented.split()[-1] if self.segmented else None
         mload = self.mask.load()
-        for (cx,cy) in region:
-            mload[cx,cy] = target
+        
+        if restore and original_alpha:
+            # Ao recuperar, usar os valores originais de transparência
+            aload = original_alpha.load()
+            for (cx,cy) in region:
+                mload[cx,cy] = aload[cx,cy]  # Preservar valor original de transparência
+        else:
+            # Ao remover, definir como transparente
+            target = 0
+            for (cx,cy) in region:
+                mload[cx,cy] = target
+                
         self._compose_result(); self._make_preview(); self._render_preview(final=True)
         self._set_status(f"Varinha {'+' if restore else '-'} {len(region)} px Tol {tol}")
         self._draw_cursor_overlay()
